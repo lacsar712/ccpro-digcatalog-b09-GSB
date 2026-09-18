@@ -71,7 +71,13 @@ func (h *Handler) Me(c *gin.Context) {
 
 func (h *Handler) ListSites(c *gin.Context) {
 	var sites []models.Site
-	if err := h.DB.Order("id desc").Find(&sites).Error; err != nil {
+	q := h.DB.Order("id desc")
+	// 默认仍返回含归档工地在内的全部记录（前端打标灰显）；
+	// 显式传 includeArchived=false 时仅返回未归档工地。
+	if c.Query("includeArchived") == "false" {
+		q = q.Where("archived = ?", false)
+	}
+	if err := q.Find(&sites).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -98,6 +104,8 @@ func (h *Handler) CreateSite(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "名称和时代必填"})
 		return
 	}
+	// 新建工地一律未归档，归档状态只能经 admin 专用接口切换
+	site.Archived = false
 	if err := h.DB.Create(&site).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -122,10 +130,38 @@ func (h *Handler) UpdateSite(c *gin.Context) {
 	site.Latitude = req.Latitude
 	site.Longitude = req.Longitude
 	site.Manager = req.Manager
+	// 归档状态只能通过专用接口（admin）切换，不在通用编辑中修改
 	if err := h.DB.Save(&site).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	c.JSON(http.StatusOK, site)
+}
+
+// SetSiteArchived 归档/解档工地，仅 admin 可调用。
+func (h *Handler) SetSiteArchived(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	var req struct {
+		Archived bool `json:"archived"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数无效"})
+		return
+	}
+	var site models.Site
+	if err := h.DB.First(&site, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "工地不存在"})
+		return
+	}
+	if site.Archived == req.Archived {
+		c.JSON(http.StatusOK, site)
+		return
+	}
+	if err := h.DB.Model(&site).Update("archived", req.Archived).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	site.Archived = req.Archived
 	c.JSON(http.StatusOK, site)
 }
 
@@ -182,6 +218,10 @@ func (h *Handler) CreateUnit(c *gin.Context) {
 	var site models.Site
 	if err := h.DB.First(&site, unit.SiteID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "所属工地不存在"})
+		return
+	}
+	if site.Archived {
+		c.JSON(http.StatusConflict, gin.H{"error": "该工地已归档，禁止新建探方"})
 		return
 	}
 	if err := h.DB.Create(&unit).Error; err != nil {
@@ -368,6 +408,11 @@ func (h *Handler) CreateFind(c *gin.Context) {
 	var unit models.Unit
 	if err := h.DB.First(&unit, req.UnitID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "所属探方不存在"})
+		return
+	}
+	var site models.Site
+	if err := h.DB.First(&site, unit.SiteID).Error; err == nil && site.Archived {
+		c.JSON(http.StatusConflict, gin.H{"error": "该探方所属工地已归档，禁止新建文物"})
 		return
 	}
 	var find models.Find

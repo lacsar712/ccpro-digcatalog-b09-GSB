@@ -68,6 +68,7 @@ func main() {
 			auth.GET("/sites/:id", h.GetSite)
 			auth.POST("/sites", h.CreateSite)
 			auth.PUT("/sites/:id", h.UpdateSite)
+			auth.PATCH("/sites/:id/archive", middleware.AdminOnly(), h.SetSiteArchived)
 			auth.DELETE("/sites/:id", h.DeleteSite)
 
 			auth.GET("/units", h.ListUnits)

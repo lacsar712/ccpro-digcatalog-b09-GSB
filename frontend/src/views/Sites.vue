@@ -20,13 +20,21 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in list" :key="item.id">
-            <td>{{ item.name }}</td>
+          <tr v-for="item in list" :key="item.id" :class="{ 'row-archived': item.archived }">
+            <td>
+              {{ item.name }}
+              <span v-if="item.archived" class="tag archived">已归档</span>
+            </td>
             <td><span class="tag">{{ item.period }}</span></td>
             <td>{{ item.latitude }}, {{ item.longitude }}</td>
             <td>{{ item.manager || '-' }}</td>
             <td>
               <button class="btn secondary small" @click="openEdit(item)">编辑</button>
+              <button
+                v-if="isAdmin"
+                class="btn secondary small"
+                @click="toggleArchive(item)"
+              >{{ item.archived ? '解档' : '归档' }}</button>
               <button class="btn danger small" @click="remove(item)">删除</button>
             </td>
           </tr>
@@ -80,6 +88,10 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import api from '../api/http'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
+const isAdmin = auth.user?.role === 'admin'
 
 const list = ref([])
 const error = ref('')
@@ -148,5 +160,36 @@ async function remove(item) {
   }
 }
 
+async function toggleArchive(item) {
+  const next = !item.archived
+  const tip = next
+    ? `确认归档工地「${item.name}」？归档后将无法在该工地下新增探方与文物，历史数据保留且仍可查看。`
+    : `确认解除工地「${item.name}」的归档状态？`
+  if (!confirm(tip)) return
+  try {
+    await api.patch(`/sites/${item.id}/archive`, { archived: next })
+    await load()
+  } catch (e) {
+    alert(e.response?.data?.error || '操作失败')
+  }
+}
+
 onMounted(load)
 </script>
+
+<style scoped>
+.row-archived {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.row-archived .tag:not(.archived) {
+  opacity: 0.7;
+}
+
+.tag.archived {
+  margin-left: 0.4rem;
+  background: #ddd6cc;
+  color: #5a5044;
+}
+</style>

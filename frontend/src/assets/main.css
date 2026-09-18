@@ -61,9 +61,23 @@ textarea {
   background: var(--danger);
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn.small {
   padding: 0.35rem 0.7rem;
   font-size: 0.875rem;
+}
+
+.archived-hint {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: #e7e1d7;
+  color: #5a5044;
+  font-size: 0.88rem;
 }
 
 .card {

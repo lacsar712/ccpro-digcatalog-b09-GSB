@@ -23,6 +23,7 @@ type Site struct {
 	Latitude  float64        `json:"latitude"`
 	Longitude float64        `json:"longitude"`
 	Manager   string         `json:"manager" gorm:"size:64"`
+	Archived  bool           `json:"archived" gorm:"not null;default:0"` // 归档后只读，禁止新增探方/文物
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`

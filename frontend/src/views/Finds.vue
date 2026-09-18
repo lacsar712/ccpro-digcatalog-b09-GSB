@@ -5,17 +5,23 @@
         <h2 class="page-title">出土文物</h2>
         <p class="page-sub">登记器物类型、材质、完整度与存放位置</p>
       </div>
-      <button class="btn" @click="openCreate">新增文物</button>
+      <button
+        class="btn"
+        :disabled="filterUnitArchived"
+        :title="filterUnitArchived ? '该探方所属工地已归档，禁止新建文物' : ''"
+        @click="openCreate"
+      >新增文物</button>
     </div>
 
     <div class="card">
+      <p v-if="filterUnitArchived" class="archived-hint">该探方所属工地已归档，历史文物仍可查看，但不能新增文物。</p>
       <div class="filters">
         <label>
           探方筛选
           <select v-model="filterUnitId" @change="load">
             <option value="">全部探方</option>
             <option v-for="u in units" :key="u.id" :value="String(u.id)">
-              {{ u.site?.name || '' }} / {{ u.code }}
+              {{ u.site?.name || '' }}{{ u.site?.archived ? '（已归档）' : '' }} / {{ u.code }}
             </option>
           </select>
         </label>
@@ -69,8 +75,13 @@
             所属探方
             <select v-model.number="form.unitId">
               <option :value="0" disabled>请选择</option>
-              <option v-for="u in units" :key="u.id" :value="u.id">
-                {{ u.site?.name || '' }} / {{ u.code }}
+              <option
+                v-for="u in units"
+                :key="u.id"
+                :value="u.id"
+                :disabled="u.site?.archived"
+              >
+                {{ u.site?.name || '' }}{{ u.site?.archived ? '（已归档）' : '' }} / {{ u.code }}
               </option>
             </select>
           </label>
@@ -123,7 +134,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../api/http'
 
 const artifactTypes = ['陶片', '青铜器', '骨器', '玉器', '石器', '铁器', '其他']
@@ -135,6 +146,10 @@ const filterType = ref('')
 const error = ref('')
 const formError = ref('')
 const showModal = ref(false)
+const filterUnitArchived = computed(() => {
+  const u = units.value.find(x => String(x.id) === filterUnitId.value)
+  return !!u?.site?.archived
+})
 
 const form = reactive({
   id: null,
@@ -175,7 +190,7 @@ async function load() {
 function openCreate() {
   Object.assign(form, {
     id: null,
-    unitId: units.value[0]?.id || 0,
+    unitId: units.value.find(u => !u.site?.archived)?.id || 0,
     materialId: materials.value[0]?.id ?? null,
     registerNo: '',
     artifactType: '陶片',
