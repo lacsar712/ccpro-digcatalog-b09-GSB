@@ -58,6 +58,8 @@ docker compose up --build
 
 - `POST /api/auth/login`
 - `GET|POST|PUT|DELETE /api/sites`
+  - `GET /api/sites?includeArchived=false` 可仅返回未归档工地；默认列表包含归档工地
+  - `POST /api/sites/:id/archive` / `POST /api/sites/:id/unarchive`（仅 admin；归档后只读，不物理删除历史数据）
 - `GET|POST|PUT|DELETE /api/units`
 - `GET|POST|PUT|DELETE /api/finds`
 - `GET|POST|PUT|DELETE /api/materials`

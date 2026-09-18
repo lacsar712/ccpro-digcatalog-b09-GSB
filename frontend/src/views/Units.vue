@@ -5,15 +5,24 @@
         <h2 class="page-title">探方 / 发掘单位</h2>
         <p class="page-sub">登记探方编号、深度与地层简述</p>
       </div>
-      <button class="btn" @click="openCreate">新增探方</button>
+      <button
+        class="btn"
+        :disabled="filterSiteArchived"
+        :title="filterSiteArchived ? '该工地已归档，不能新增探方' : ''"
+        @click="openCreate"
+      >新增探方</button>
     </div>
+
+    <p v-if="filterSiteArchived" class="archived-hint">该工地已归档，仅可查看，不能新增探方。</p>
 
     <div class="card">
       <label style="max-width: 260px; margin-bottom: 1rem;">
         按工地筛选
         <select v-model="filterSiteId" @change="load">
           <option value="">全部工地</option>
-          <option v-for="s in sites" :key="s.id" :value="String(s.id)">{{ s.name }}</option>
+          <option v-for="s in sites" :key="s.id" :value="String(s.id)">
+            {{ s.name }}{{ s.archived ? '（已归档）' : '' }}
+          </option>
         </select>
       </label>
       <table class="table">
@@ -51,7 +60,14 @@
             所属工地
             <select v-model.number="form.siteId">
               <option :value="0" disabled>请选择</option>
-              <option v-for="s in sites" :key="s.id" :value="s.id">{{ s.name }}</option>
+              <option
+                v-for="s in sites"
+                :key="s.id"
+                :value="s.id"
+                :disabled="s.archived"
+              >
+                {{ s.name }}{{ s.archived ? '（已归档）' : '' }}
+              </option>
             </select>
           </label>
           <label>
@@ -82,7 +98,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import api from '../api/http'
 
 const list = ref([])
@@ -91,6 +107,10 @@ const filterSiteId = ref('')
 const error = ref('')
 const formError = ref('')
 const showModal = ref(false)
+
+const activeSites = computed(() => sites.value.filter((s) => !s.archived))
+const filterSite = computed(() => sites.value.find((s) => String(s.id) === filterSiteId.value))
+const filterSiteArchived = computed(() => !!filterSite.value?.archived)
 const form = reactive({
   id: null,
   siteId: 0,
@@ -120,7 +140,7 @@ async function load() {
 function openCreate() {
   Object.assign(form, {
     id: null,
-    siteId: sites.value[0]?.id || 0,
+    siteId: activeSites.value[0]?.id || 0,
     code: '',
     depthMin: 0,
     depthMax: 1,

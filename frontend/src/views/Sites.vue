@@ -20,14 +20,27 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in list" :key="item.id">
-            <td>{{ item.name }}</td>
+          <tr v-for="item in list" :key="item.id" :class="{ archived: item.archived }">
+            <td>
+              {{ item.name }}
+              <span v-if="item.archived" class="tag tag-archived">已归档</span>
+            </td>
             <td><span class="tag">{{ item.period }}</span></td>
             <td>{{ item.latitude }}, {{ item.longitude }}</td>
             <td>{{ item.manager || '-' }}</td>
             <td>
               <button class="btn secondary small" @click="openEdit(item)">编辑</button>
-              <button class="btn danger small" @click="remove(item)">删除</button>
+              <button
+                v-if="auth.isAdmin && !item.archived"
+                class="btn secondary small"
+                @click="archive(item)"
+              >归档</button>
+              <button
+                v-if="auth.isAdmin && item.archived"
+                class="btn small"
+                @click="unarchive(item)"
+              >解档</button>
+              <button class="btn danger small" @click="remove(item)" :disabled="item.archived">删除</button>
             </td>
           </tr>
         </tbody>
@@ -80,7 +93,9 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import api from '../api/http'
+import { useAuthStore } from '../stores/auth'
 
+const auth = useAuthStore()
 const list = ref([])
 const error = ref('')
 const formError = ref('')
@@ -148,5 +163,42 @@ async function remove(item) {
   }
 }
 
+async function archive(item) {
+  if (!confirm(`确认归档工地「${item.name}」？归档后该工地将只读，不能新增探方与文物，历史数据保留。`)) return
+  try {
+    await api.post(`/sites/${item.id}/archive`)
+    await load()
+  } catch (e) {
+    alert(e.response?.data?.error || '归档失败')
+  }
+}
+
+async function unarchive(item) {
+  if (!confirm(`确认解除工地「${item.name}」的归档状态？`)) return
+  try {
+    await api.post(`/sites/${item.id}/unarchive`)
+    await load()
+  } catch (e) {
+    alert(e.response?.data?.error || '解档失败')
+  }
+}
+
 onMounted(load)
 </script>
+
+<style scoped>
+tr.archived td {
+  color: var(--muted);
+  background: #f2efe9;
+}
+
+tr.archived td:last-child {
+  color: var(--text);
+}
+
+.tag-archived {
+  background: #d8d4cc;
+  color: #5b5348;
+  margin-left: 0.4rem;
+}
+</style>

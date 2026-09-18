@@ -69,6 +69,9 @@ func main() {
 			auth.POST("/sites", h.CreateSite)
 			auth.PUT("/sites/:id", h.UpdateSite)
 			auth.DELETE("/sites/:id", h.DeleteSite)
+			// 归档/解档仅管理员；不物理删除历史数据。
+			auth.POST("/sites/:id/archive", middleware.AdminOnly(), h.ArchiveSite)
+			auth.POST("/sites/:id/unarchive", middleware.AdminOnly(), h.UnarchiveSite)
 
 			auth.GET("/units", h.ListUnits)
 			auth.GET("/units/:id", h.GetUnit)

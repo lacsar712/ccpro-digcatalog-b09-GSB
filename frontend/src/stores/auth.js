@@ -7,6 +7,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(JSON.parse(localStorage.getItem('digcatalog_user') || 'null'))
 
   const isLoggedIn = computed(() => !!token.value)
+  const isAdmin = computed(() => user.value?.role === 'admin')
   const roleLabel = computed(() => (user.value?.role === 'admin' ? '管理员' : '记录员'))
 
   async function login(username, password) {
@@ -24,5 +25,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('digcatalog_user')
   }
 
-  return { token, user, isLoggedIn, roleLabel, login, logout }
+  return { token, user, isLoggedIn, isAdmin, roleLabel, login, logout }
 })

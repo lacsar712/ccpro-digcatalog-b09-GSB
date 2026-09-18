@@ -71,7 +71,13 @@ func (h *Handler) Me(c *gin.Context) {
 
 func (h *Handler) ListSites(c *gin.Context) {
 	var sites []models.Site
-	if err := h.DB.Order("id desc").Find(&sites).Error; err != nil {
+	q := h.DB.Order("archived asc, id desc")
+	// 默认列表仍返回归档工地（前端打标灰显）；显式 includeArchived=false 时仅返回未归档工地，
+	// 供"选择工地"类场景使用。
+	if c.Query("includeArchived") == "false" {
+		q = q.Where("archived = ?", false)
+	}
+	if err := q.Find(&sites).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -122,6 +128,7 @@ func (h *Handler) UpdateSite(c *gin.Context) {
 	site.Latitude = req.Latitude
 	site.Longitude = req.Longitude
 	site.Manager = req.Manager
+	// archived 不在普通更新中变更，仅可通过管理员专用的归档/解档接口修改。
 	if err := h.DB.Save(&site).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -129,8 +136,49 @@ func (h *Handler) UpdateSite(c *gin.Context) {
 	c.JSON(http.StatusOK, site)
 }
 
+// setArchived 仅供管理员调用，切换工地归档状态。不删除任何历史数据。
+func (h *Handler) setArchived(c *gin.Context, archived bool) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	var site models.Site
+	if err := h.DB.First(&site, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "工地不存在"})
+		return
+	}
+	if site.Archived == archived {
+		c.JSON(http.StatusOK, site)
+		return
+	}
+	if err := h.DB.Model(&site).Update("archived", archived).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	site.Archived = archived
+	msg := "已归档"
+	if !archived {
+		msg = "已解档"
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg, "site": site})
+}
+
+func (h *Handler) ArchiveSite(c *gin.Context) {
+	h.setArchived(c, true)
+}
+
+func (h *Handler) UnarchiveSite(c *gin.Context) {
+	h.setArchived(c, false)
+}
+
 func (h *Handler) DeleteSite(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
+	var site models.Site
+	if err := h.DB.First(&site, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "工地不存在"})
+		return
+	}
+	if site.Archived {
+		c.JSON(http.StatusConflict, gin.H{"error": "工地已归档，不能删除；如需恢复请先解档"})
+		return
+	}
 	var count int64
 	h.DB.Model(&models.Unit{}).Where("site_id = ?", id).Count(&count)
 	if count > 0 {
@@ -182,6 +230,10 @@ func (h *Handler) CreateUnit(c *gin.Context) {
 	var site models.Site
 	if err := h.DB.First(&site, unit.SiteID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "所属工地不存在"})
+		return
+	}
+	if site.Archived {
+		c.JSON(http.StatusConflict, gin.H{"error": "该工地已归档，禁止新建探方"})
 		return
 	}
 	if err := h.DB.Create(&unit).Error; err != nil {
@@ -368,6 +420,15 @@ func (h *Handler) CreateFind(c *gin.Context) {
 	var unit models.Unit
 	if err := h.DB.First(&unit, req.UnitID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "所属探方不存在"})
+		return
+	}
+	var site models.Site
+	if err := h.DB.First(&site, unit.SiteID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "所属工地不存在"})
+		return
+	}
+	if site.Archived {
+		c.JSON(http.StatusConflict, gin.H{"error": "该工地已归档，禁止新建出土文物"})
 		return
 	}
 	var find models.Find
